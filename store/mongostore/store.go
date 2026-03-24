@@ -629,6 +629,13 @@ func (s *MongoStore) PutManyRedactedPhones(ctx context.Context, entries []store.
 	return err
 }
 
+func getStringSafe(m bson.M, k string) string {
+	if s, ok := m[k].(string); ok {
+		return s
+	}
+	return ""
+}
+
 func (s *MongoStore) getContact(ctx context.Context, user types.JID) (*types.ContactInfo, error) {
 	if cached, ok := s.contactCache[user]; ok {
 		return cached, nil
@@ -645,11 +652,11 @@ func (s *MongoStore) getContact(ctx context.Context, user types.JID) (*types.Con
 	}
 	info := &types.ContactInfo{
 		Found:         true,
-		FirstName:     res["first_name"].(string),
-		FullName:      res["full_name"].(string),
-		PushName:      res["push_name"].(string),
-		BusinessName:  res["business_name"].(string),
-		RedactedPhone: res["redacted_phone"].(string),
+		FirstName:     getStringSafe(res, "first_name"),
+		FullName:      getStringSafe(res, "full_name"),
+		PushName:      getStringSafe(res, "push_name"),
+		BusinessName:  getStringSafe(res, "business_name"),
+		RedactedPhone: getStringSafe(res, "redacted_phone"),
 	}
 	s.contactCache[user] = info
 	return info, nil
@@ -678,14 +685,15 @@ func (s *MongoStore) GetAllContacts(ctx context.Context) (map[types.JID]types.Co
 		if err := cursor.Decode(&res); err != nil {
 			return nil, err
 		}
-		jid, _ := types.ParseJID(res["their_jid"].(string))
+		theirJid, _ := res["their_jid"].(string)
+		jid, _ := types.ParseJID(theirJid)
 		contacts[jid] = types.ContactInfo{
 			Found:         true,
-			FirstName:     res["first_name"].(string),
-			FullName:      res["full_name"].(string),
-			PushName:      res["push_name"].(string),
-			BusinessName:  res["business_name"].(string),
-			RedactedPhone: res["redacted_phone"].(string),
+			FirstName:     getStringSafe(res, "first_name"),
+			FullName:      getStringSafe(res, "full_name"),
+			PushName:      getStringSafe(res, "push_name"),
+			BusinessName:  getStringSafe(res, "business_name"),
+			RedactedPhone: getStringSafe(res, "redacted_phone"),
 		}
 	}
 	return contacts, nil

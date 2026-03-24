@@ -268,6 +268,19 @@ func (c *Container) GetAllDevices(ctx context.Context) ([]*store.Device, error) 
 	return devices, nil
 }
 
+// GetFirstDevice is a convenience method for getting the first device in the store.
+func (c *Container) GetFirstDevice(ctx context.Context) (*store.Device, error) {
+	devices, err := c.GetAllDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) == 0 {
+		return c.NewDevice(), nil
+	} else {
+		return devices[0], nil
+	}
+}
+
 func (c *Container) DeleteDevice(ctx context.Context, device *store.Device) error {
 	if device.ID == nil {
 		return errors.New("device JID must be known before accessing database")
