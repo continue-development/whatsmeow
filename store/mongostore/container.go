@@ -140,6 +140,7 @@ func (c *Container) PutDevice(ctx context.Context, device *store.Device) error {
 			"adv_account_sig_key": device.Account.AccountSignatureKey,
 			"adv_device_sig":      device.Account.DeviceSignature,
 			"facebook_uuid":       device.FacebookUUID.String(),
+			"server_id":           device.ServerID,
 		},
 	}
 
@@ -242,6 +243,8 @@ func (c *Container) decodeDevice(res bson.M) (*store.Device, error) {
 	lidMigTs, _ := res["lid_migration_ts"].(int64)
 	device.LIDMigrationTimestamp = lidMigTs
 
+	device.ServerID, _ = res["server_id"].(string)
+
 	c.initializeDevice(&device)
 	return &device, nil
 }
@@ -266,6 +269,41 @@ func (c *Container) GetAllDevices(ctx context.Context) ([]*store.Device, error) 
 		devices = append(devices, dev)
 	}
 	return devices, nil
+}
+
+func (c *Container) GetDevicesByServerID(ctx context.Context, serverID string) ([]*store.Device, error) {
+	cursor, err := c.deviceColl.Find(ctx, bson.M{"server_id": serverID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query devices by server_id: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var devices []*store.Device
+	for cursor.Next(ctx) {
+		var res bson.M
+		if err := cursor.Decode(&res); err != nil {
+			return nil, fmt.Errorf("failed to decode device: %w", err)
+		}
+		dev, err := c.decodeDevice(res)
+		if err != nil {
+			return nil, err
+		}
+		devices = append(devices, dev)
+	}
+	return devices, nil
+}
+
+func (c *Container) GetFirstDeviceByServerID(ctx context.Context, serverID string) (*store.Device, error) {
+	devices, err := c.GetDevicesByServerID(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) == 0 {
+		dev := c.NewDevice()
+		dev.ServerID = serverID
+		return dev, nil
+	}
+	return devices[0], nil
 }
 
 // GetFirstDevice is a convenience method for getting the first device in the store.

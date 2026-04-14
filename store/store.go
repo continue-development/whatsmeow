@@ -224,6 +224,7 @@ type Device struct {
 	LIDMigrationTimestamp int64
 
 	FacebookUUID uuid.UUID
+	ServerID     string
 
 	Initialized   bool
 	Identities    IdentityStore
