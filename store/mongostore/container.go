@@ -210,11 +210,11 @@ func (c *Container) decodeDevice(res bson.M) (*store.Device, error) {
 	regID, _ := res["registration_id"].(int64)
 	device.RegistrationID = uint32(regID)
 
-	noisePriv, _ := res["noise_key"].([]byte)
-	identityPriv, _ := res["identity_key"].([]byte)
-	preKeyPriv, _ := res["signed_pre_key"].([]byte)
+	noisePriv := asByteSlice(res["noise_key"])
+	identityPriv := asByteSlice(res["identity_key"])
+	preKeyPriv := asByteSlice(res["signed_pre_key"])
 	preKeyID, _ := res["signed_pre_key_id"].(int64)
-	preKeySig, _ := res["signed_pre_key_sig"].([]byte)
+	preKeySig := asByteSlice(res["signed_pre_key_sig"])
 
 	if len(noisePriv) != 32 || len(identityPriv) != 32 || len(preKeyPriv) != 32 || len(preKeySig) != 64 {
 		return nil, errors.New("invalid key lengths in database")
@@ -226,13 +226,13 @@ func (c *Container) decodeDevice(res bson.M) (*store.Device, error) {
 	device.SignedPreKey.KeyID = uint32(preKeyID)
 	device.SignedPreKey.Signature = (*[64]byte)(preKeySig)
 
-	device.AdvSecretKey, _ = res["adv_key"].([]byte)
+	device.AdvSecretKey = asByteSlice(res["adv_key"])
 	
 	var account waAdv.ADVSignedDeviceIdentity
-	account.Details, _ = res["adv_details"].([]byte)
-	account.AccountSignature, _ = res["adv_account_sig"].([]byte)
-	account.AccountSignatureKey, _ = res["adv_account_sig_key"].([]byte)
-	account.DeviceSignature, _ = res["adv_device_sig"].([]byte)
+	account.Details = asByteSlice(res["adv_details"])
+	account.AccountSignature = asByteSlice(res["adv_account_sig"])
+	account.AccountSignatureKey = asByteSlice(res["adv_account_sig_key"])
+	account.DeviceSignature = asByteSlice(res["adv_device_sig"])
 	device.Account = &account
 
 	device.Platform, _ = res["platform"].(string)
@@ -333,4 +333,18 @@ func (c *Container) DeleteDevice(ctx context.Context, device *store.Device) erro
 
 func (c *Container) Close() error {
 	return c.client.Disconnect(context.Background())
+}
+
+func asByteSlice(val interface{}) []byte {
+	if val == nil {
+		return nil
+	}
+	switch v := val.(type) {
+	case []byte:
+		return v
+	case bson.Binary:
+		return v.Data
+	default:
+		return nil
+	}
 }
