@@ -100,7 +100,7 @@ func (s *MongoStore) IsTrustedIdentity(ctx context.Context, address string, key 
 		}
 		return false, err
 	}
-	existingIdentity, _ := res["identity"].([]byte)
+	existingIdentity := asByteSlice(res["identity"])
 	if len(existingIdentity) != 32 {
 		return false, errors.New("invalid identity key length in database")
 	}
@@ -118,7 +118,7 @@ func (s *MongoStore) GetSession(ctx context.Context, address string) ([]byte, er
 		}
 		return nil, err
 	}
-	session, _ := res["session"].([]byte)
+	session := asByteSlice(res["session"])
 	return session, nil
 }
 
@@ -147,7 +147,7 @@ func (s *MongoStore) GetManySessions(ctx context.Context, addresses []string) (m
 			return nil, err
 		}
 		addr, _ := res["their_id"].(string)
-		session, _ := res["session"].([]byte)
+		session := asByteSlice(res["session"])
 		result[addr] = session
 	}
 	return result, nil
@@ -200,7 +200,7 @@ func (s *MongoStore) MigratePNToLID(ctx context.Context, pn, lid types.JID) erro
 			}
 			addr := res["their_id"].(string)
 			newAddr := lidStr + addr[len(pnStr):]
-			s.PutSession(ctx, newAddr, res["session"].([]byte))
+			s.PutSession(ctx, newAddr, asByteSlice(res["session"]))
 		}
 		cursor.Close(ctx)
 	}
@@ -215,7 +215,7 @@ func (s *MongoStore) MigratePNToLID(ctx context.Context, pn, lid types.JID) erro
 			}
 			addr := res["their_id"].(string)
 			newAddr := lidStr + addr[len(pnStr):]
-			s.PutIdentity(ctx, newAddr, *(*[32]byte)(res["identity"].([]byte)))
+			s.PutIdentity(ctx, newAddr, *(*[32]byte)(asByteSlice(res["identity"])))
 		}
 		cursor.Close(ctx)
 	}
@@ -272,7 +272,7 @@ func (s *MongoStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 		if err := cursor.Decode(&res); err != nil {
 			return nil, err
 		}
-		priv, _ := res["key"].([]byte)
+		priv := asByteSlice(res["key"])
 		id, _ := res["key_id"].(int64)
 		if len(priv) == 32 {
 			preKeys = append(preKeys, &keys.PreKey{
@@ -321,7 +321,7 @@ func (s *MongoStore) GetPreKey(ctx context.Context, id uint32) (*keys.PreKey, er
 		}
 		return nil, err
 	}
-	priv, _ := res["key"].([]byte)
+	priv := asByteSlice(res["key"])
 	if len(priv) != 32 {
 		return nil, errors.New("invalid prekey length in database")
 	}
@@ -366,7 +366,7 @@ func (s *MongoStore) GetSenderKey(ctx context.Context, group, user string) ([]by
 		}
 		return nil, err
 	}
-	key, _ := res["sender_key"].([]byte)
+	key := asByteSlice(res["sender_key"])
 	return key, nil
 }
 
@@ -393,9 +393,9 @@ func (s *MongoStore) GetAppStateSyncKey(ctx context.Context, id []byte) (*store.
 		}
 		return nil, err
 	}
-	data, _ := res["key_data"].([]byte)
+	data := asByteSlice(res["key_data"])
 	ts, _ := res["timestamp"].(int64)
-	fp, _ := res["fingerprint"].([]byte)
+	fp := asByteSlice(res["fingerprint"])
 	return &store.AppStateSyncKey{
 		Data:        data,
 		Timestamp:   ts,
@@ -412,7 +412,7 @@ func (s *MongoStore) GetLatestAppStateSyncKeyID(ctx context.Context) ([]byte, er
 		}
 		return nil, err
 	}
-	id, _ := res["key_id"].([]byte)
+	id := asByteSlice(res["key_id"])
 	return id, nil
 }
 
@@ -429,9 +429,9 @@ func (s *MongoStore) GetAllAppStateSyncKeys(ctx context.Context) ([]*store.AppSt
 		if err := cursor.Decode(&res); err != nil {
 			return nil, err
 		}
-		data, _ := res["key_data"].([]byte)
+		data := asByteSlice(res["key_data"])
 		ts, _ := res["timestamp"].(int64)
-		fp, _ := res["fingerprint"].([]byte)
+		fp := asByteSlice(res["fingerprint"])
 		out = append(out, &store.AppStateSyncKey{
 			Data:        data,
 			Timestamp:   ts,
@@ -466,7 +466,7 @@ func (s *MongoStore) GetAppStateVersion(ctx context.Context, name string) (uint6
 		return 0, hash, err
 	}
 	v, _ := res["version"].(int64)
-	h, _ := res["hash"].([]byte)
+	h := asByteSlice(res["hash"])
 	if len(h) == 128 {
 		hash = *(*[128]byte)(h)
 	}
@@ -515,7 +515,7 @@ func (s *MongoStore) GetAppStateMutationMAC(ctx context.Context, name string, in
 		}
 		return nil, err
 	}
-	mac, _ := res["value_mac"].([]byte)
+	mac := asByteSlice(res["value_mac"])
 	return mac, nil
 }
 
@@ -777,7 +777,7 @@ func (s *MongoStore) GetMessageSecret(ctx context.Context, chat, sender types.JI
 		}
 		return nil, types.EmptyJID, err
 	}
-	secret, _ := res["secret"].([]byte)
+	secret := asByteSlice(res["secret"])
 	// The SQL store also returns the sender JID, but it's the same as passed in.
 	return secret, sender, nil
 }
@@ -807,7 +807,7 @@ func (s *MongoStore) GetPrivacyToken(ctx context.Context, user types.JID) (*stor
 		}
 		return nil, err
 	}
-	token, _ := res["token"].([]byte)
+	token := asByteSlice(res["token"])
 	ts, _ := res["timestamp"].(int64)
 	return &store.PrivacyToken{
 		User:      user,
@@ -827,7 +827,7 @@ func (s *MongoStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]by
 		}
 		return nil, err
 	}
-	plaintext, _ := res["plaintext"].([]byte)
+	plaintext := asByteSlice(res["plaintext"])
 	insertTs, _ := res["insert_time"].(int64)
 	serverTs, _ := res["server_time"].(int64)
 	return &store.BufferedEvent{
@@ -885,7 +885,7 @@ func (s *MongoStore) GetOutgoingEvent(ctx context.Context, chatJID, altChatJID t
 		return "", nil, err
 	}
 	format, _ := res["format"].(string)
-	plaintext, _ := res["plaintext"].([]byte)
+	plaintext := asByteSlice(res["plaintext"])
 	return format, plaintext, nil
 }
 
