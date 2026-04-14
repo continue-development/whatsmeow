@@ -130,6 +130,7 @@ func (c *Container) PutDevice(ctx context.Context, device *store.Device) error {
 			"business_name":    device.BusinessName,
 			"push_name":        device.PushName,
 			"lid_migration_ts": device.LIDMigrationTimestamp,
+			"identifier":       device.Identifier,
 		},
 		"$setOnInsert": bson.M{
 			"registration_id":     device.RegistrationID,
@@ -248,6 +249,7 @@ func (c *Container) decodeDevice(res bson.M) (*store.Device, error) {
 	device.LIDMigrationTimestamp = lidMigTs
 
 	device.ServerID, _ = res["server_id"].(string)
+	device.Identifier, _ = res["identifier"].(string)
 
 	c.initializeDevice(&device)
 	return &device, nil

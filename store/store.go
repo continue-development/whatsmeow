@@ -225,6 +225,7 @@ type Device struct {
 
 	FacebookUUID uuid.UUID
 	ServerID     string
+	Identifier   string
 
 	Initialized   bool
 	Identities    IdentityStore
