@@ -255,8 +255,16 @@ func (c *Container) decodeDevice(res bson.M) (*store.Device, error) {
 	return &device, nil
 }
 
-func (c *Container) GetAllDevices(ctx context.Context) ([]*store.Device, error) {
-	cursor, err := c.deviceColl.Find(ctx, bson.M{})
+func (c *Container) GetAllDevices(ctx context.Context, serverID string, identifier string) ([]*store.Device, error) {
+	filter := bson.M{}
+	if serverID != "" {
+		filter["server_id"] = serverID
+	}
+	if identifier != "" {
+		filter["identifier"] = identifier
+	}
+
+	cursor, err := c.deviceColl.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query devices: %w", err)
 	}
@@ -278,35 +286,22 @@ func (c *Container) GetAllDevices(ctx context.Context) ([]*store.Device, error) 
 }
 
 func (c *Container) GetDevicesByServerID(ctx context.Context, serverID string) ([]*store.Device, error) {
-	cursor, err := c.deviceColl.Find(ctx, bson.M{"server_id": serverID})
-	if err != nil {
-		return nil, fmt.Errorf("failed to query devices by server_id: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var devices []*store.Device
-	for cursor.Next(ctx) {
-		var res bson.M
-		if err := cursor.Decode(&res); err != nil {
-			return nil, fmt.Errorf("failed to decode device: %w", err)
-		}
-		dev, err := c.decodeDevice(res)
-		if err != nil {
-			return nil, err
-		}
-		devices = append(devices, dev)
-	}
-	return devices, nil
+	return c.GetAllDevices(ctx, serverID, "")
 }
 
 func (c *Container) GetFirstDeviceByServerID(ctx context.Context, serverID string) (*store.Device, error) {
-	devices, err := c.GetDevicesByServerID(ctx, serverID)
+	return c.GetDeviceByServerIDAndIdentifier(ctx, serverID, "")
+}
+
+func (c *Container) GetDeviceByServerIDAndIdentifier(ctx context.Context, serverID, identifier string) (*store.Device, error) {
+	devices, err := c.GetAllDevices(ctx, serverID, identifier)
 	if err != nil {
 		return nil, err
 	}
 	if len(devices) == 0 {
 		dev := c.NewDevice()
 		dev.ServerID = serverID
+		dev.Identifier = identifier
 		return dev, nil
 	}
 	return devices[0], nil
@@ -314,7 +309,7 @@ func (c *Container) GetFirstDeviceByServerID(ctx context.Context, serverID strin
 
 // GetFirstDevice is a convenience method for getting the first device in the store.
 func (c *Container) GetFirstDevice(ctx context.Context) (*store.Device, error) {
-	devices, err := c.GetAllDevices(ctx)
+	devices, err := c.GetAllDevices(ctx, "", "")
 	if err != nil {
 		return nil, err
 	}
