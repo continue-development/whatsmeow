@@ -42,6 +42,10 @@ func New(ctx context.Context, uri, dbName string, log waLog.Logger) (*Container,
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
+	return NewWithClient(ctx, client, dbName, log)
+}
+
+func NewWithClient(ctx context.Context, client *mongo.Client, dbName string, log waLog.Logger) (*Container, error) {
 	if log == nil {
 		log = waLog.Noop
 	}
@@ -53,10 +57,10 @@ func New(ctx context.Context, uri, dbName string, log waLog.Logger) (*Container,
 		deviceColl: db.Collection("whatsmeow_device"),
 		LIDMap:     NewCachedLIDMap(db),
 	}
-	
+
 	// Create indices
 	container.createIndices(ctx)
-	
+
 	return container, nil
 }
 
