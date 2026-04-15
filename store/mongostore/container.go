@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	mathRand "math/rand/v2"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -314,13 +315,21 @@ func (c *Container) GetAllDevicesSortedByUpdated(ctx context.Context) ([]*store.
 	return devices, nil
 }
 
-// DeleteDevicesByJID deletes all device records that match the given JID user string
-// (i.e., the phone number part, ignoring device suffix), except for the excluded JID.
-func (c *Container) DeleteDevicesByJIDExcept(ctx context.Context, jid types.JID, exceptJID types.JID) error {
-	// Match any JID with the same phone number (e.g. 628xxx@s.whatsapp.net:*)
+// DeleteDevicesByJIDExcept deletes all device records that:
+// - belong to the given serverID
+// - share the same phone number as jid (i.e. jid.User, ignoring device suffix)
+// - are NOT the exceptJID (the newly paired device to keep)
+//
+// The serverID filter prevents cross-server data corruption when the same phone number
+// is legitimately paired to multiple servers.
+func (c *Container) DeleteDevicesByJIDExcept(ctx context.Context, serverID string, jid types.JID, exceptJID types.JID) error {
+	// Safely escape the phone number to avoid regex injection
+	// (WhatsApp users are numeric, but better to be safe)
+	escapedUser := regexp.QuoteMeta(jid.User)
 	filter := bson.M{
+		"server_id": serverID,
 		"jid": bson.M{
-			"$regex": "^" + jid.User + "@",
+			"$regex": "^" + escapedUser + "@",
 			"$ne":    exceptJID.String(),
 		},
 	}
