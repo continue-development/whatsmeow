@@ -11,12 +11,12 @@ import (
 	"errors"
 	"fmt"
 	mathRand "math/rand/v2"
+	"time"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-
 
 	"go.mau.fi/whatsmeow/proto/waAdv"
 	"go.mau.fi/whatsmeow/store"
@@ -131,6 +131,7 @@ func (c *Container) PutDevice(ctx context.Context, device *store.Device) error {
 			"push_name":        device.PushName,
 			"lid_migration_ts": device.LIDMigrationTimestamp,
 			"identifier":       device.Identifier,
+			"updated_at":       time.Now().UTC(),
 		},
 		"$setOnInsert": bson.M{
 			"registration_id":     device.RegistrationID,
@@ -251,6 +252,10 @@ func (c *Container) decodeDevice(res bson.M) (*store.Device, error) {
 	device.ServerID, _ = res["server_id"].(string)
 	device.Identifier, _ = res["identifier"].(string)
 
+	if updatedAt, ok := res["updated_at"].(time.Time); ok {
+		device.UpdatedAt = updatedAt
+	}
+
 	c.initializeDevice(&device)
 	return &device, nil
 }
@@ -283,6 +288,44 @@ func (c *Container) GetAllDevices(ctx context.Context, serverID string, identifi
 		devices = append(devices, dev)
 	}
 	return devices, nil
+}
+
+// GetAllDevicesSortedByUpdated returns all devices sorted by updated_at descending.
+// Used by StartAll to pick the most recent session per JID.
+func (c *Container) GetAllDevicesSortedByUpdated(ctx context.Context) ([]*store.Device, error) {
+	cursor, err := c.deviceColl.Find(ctx, bson.M{}, options.Find().SetSort(bson.M{"updated_at": -1}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query devices: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var devices []*store.Device
+	for cursor.Next(ctx) {
+		var res bson.M
+		if err := cursor.Decode(&res); err != nil {
+			return nil, fmt.Errorf("failed to decode device: %w", err)
+		}
+		dev, err := c.decodeDevice(res)
+		if err != nil {
+			return nil, err
+		}
+		devices = append(devices, dev)
+	}
+	return devices, nil
+}
+
+// DeleteDevicesByJID deletes all device records that match the given JID user string
+// (i.e., the phone number part, ignoring device suffix), except for the excluded JID.
+func (c *Container) DeleteDevicesByJIDExcept(ctx context.Context, jid types.JID, exceptJID types.JID) error {
+	// Match any JID with the same phone number (e.g. 628xxx@s.whatsapp.net:*)
+	filter := bson.M{
+		"jid": bson.M{
+			"$regex": "^" + jid.User + "@",
+			"$ne":    exceptJID.String(),
+		},
+	}
+	_, err := c.deviceColl.DeleteMany(ctx, filter)
+	return err
 }
 
 func (c *Container) GetDevicesByServerID(ctx context.Context, serverID string) ([]*store.Device, error) {
